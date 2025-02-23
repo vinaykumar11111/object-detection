@@ -4,19 +4,25 @@ import cvzone
 import math
 import time
 
-#video_path = r"C:\Users\svina\Downloads\people.mp4"
-cap = cv2.VideoCapture(0)  # Changed to default camera index
+# Path to video file
+video_path = r"C:\Users\svina\Downloads\dataset_video.mp4"
 
-# Check if the webcam opened successfully
+# Open the video file
+cap = cv2.VideoCapture(video_path)
+
+# Check if the video file opened successfully
 if not cap.isOpened():
-    print("Error: Could not open the camera.")
+    print("Error: Could not open the video file.")
     exit()
 
-cap.set(3, 1280)  # Set width
-cap.set(4, 720)   # Set height
+# Set frame width and height (not always effective for video files)
+cap.set(3, 1280)
+cap.set(4, 720)
 
+# Load YOLO model
 model = YOLO("../Yolo-Weights/yolov8l.pt")
 
+# COCO Class Labels
 classNames = ["person", "bicycle", "car", "motorbike", "aeroplane", "bus", "train", "truck", "boat",
               "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat",
               "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella",
@@ -30,38 +36,44 @@ classNames = ["person", "bicycle", "car", "motorbike", "aeroplane", "bus", "trai
               ]
 
 prev_frame_time = 0
-new_frame_time = 0
 
 while True:
     new_frame_time = time.time()
-    success, img = cap.read()
     
+    success, img = cap.read()
     if not success:
-        print("Failed to capture image")
-        continue  # Skip the rest of the loop if the frame was not captured correctly
+        print("End of video or error reading the frame.")
+        break  # Exit the loop when video ends
 
+    # Perform object detection
     results = model(img, stream=True)
     for r in results:
         boxes = r.boxes
         for box in boxes:
             # Bounding Box
-            x1, y1, x2, y2 = box.xyxy[0]
-            x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+            x1, y1, x2, y2 = map(int, box.xyxy[0])  # Convert to int
             w, h = x2 - x1, y2 - y1
             cvzone.cornerRect(img, (x1, y1, w, h))
-            # Confidence
+
+            # Confidence Score
             conf = math.ceil((box.conf[0] * 100)) / 100
+
             # Class Name
             cls = int(box.cls[0])
-            cvzone.putTextRect(img, f'{classNames[cls]} {conf}', (max(0, x1), max(35, y1)), scale=1, thickness=1)
+            label = f'{classNames[cls]} {conf:.2f}'
+            cvzone.putTextRect(img, label, (max(0, x1), max(35, y1)), scale=1, thickness=1)
 
+    # Calculate FPS
     fps = 1 / (new_frame_time - prev_frame_time)
     prev_frame_time = new_frame_time
-    print(fps)
+    print(f"FPS: {fps:.2f}")
 
-    cv2.imshow("Image", img)
+    # Display the video with detected objects
+    cv2.imshow("Object Detection", img)
+
+    # Press 'q' to exit
     if cv2.waitKey(1) & 0xFF == ord('q'):
-        break  # Exit loop when 'q' is pressed
+        break
 
 cap.release()
 cv2.destroyAllWindows()
